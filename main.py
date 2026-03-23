@@ -19,7 +19,7 @@ try:
     while True:
         sentence = pipeline.get_text()
         if sentence:
-            # print("🧠 Palestrante:", sentence)
+            print("🧠 Palestrante:", sentence)
             sentence_translated = argostranslate.translate.translate(
                 sentence,
                 "pt",
