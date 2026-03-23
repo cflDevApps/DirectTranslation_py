@@ -1,26 +1,32 @@
-# import sounddevice as sd
-#
-# devices = sd.query_devices()
-#
-# for i, device in enumerate(devices):
-#     if device["max_input_channels"] > 0:
-#         print(i, device["name"])
+import argostranslate.translate
+from src.audio.microphone_stream import HybridAudioPipeline
+from src.asr.whisper_engine import WhisperEngine
 
-import sounddevice as sd
-import numpy as np
+whisper = WhisperEngine("small")
 
-def callback(indata, frames, time, status):
-    if status:
-        print("Status:", status)
-    print("MIN:", np.min(indata), "MAX:", np.max(indata))
+pipeline = HybridAudioPipeline(
+    whisper_model=whisper,
+    energy_threshold=0.0015,  # 🔥 ajustado pro seu caso
+    silence_timeout=1.0,
+    device=1
+)
 
-print(sd.query_devices())
+pipeline.start()
 
-with sd.InputStream(
-    samplerate=16000,
-    channels=1,
-    callback=callback,
-    device=1,
-):
-    print("Fale algo...")
-    sd.sleep(5000)
+print("Fale algo...")
+
+try:
+    while True:
+        sentence = pipeline.get_text()
+        if sentence:
+            # print("🧠 Palestrante:", sentence)
+            sentence_translated = argostranslate.translate.translate(
+                sentence,
+                "pt",
+                "en"
+            )
+            print("💻 Tradutor:", sentence_translated)
+
+
+except KeyboardInterrupt:
+    pipeline.stop()
