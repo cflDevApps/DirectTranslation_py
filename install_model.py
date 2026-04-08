@@ -1,5 +1,4 @@
 import argostranslate.package
-import argostranslate.translate
 from faster_whisper import WhisperModel
 
 # atualizar lista de modelos
