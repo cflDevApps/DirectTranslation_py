@@ -6,22 +6,16 @@ This documentation provides a detailed overview of the project structure and exp
 ## Directory Structure
 ```
 DirectTranslation_py/
-├── README.md               # Project documentation and introduction
-├── requirements.txt        # Python dependencies
-├── src/                   # Source files for the application
-│   ├── __init__.py        # Package initialization
-│   ├── main.py            # Main entry point of the application
-│   ├── translator.py       # Contains translation logic
-│   └── utils.py           # Utility functions
-├── tests/                 # Unit tests
-│   ├── __init__.py        # Package initialization for tests
-│   ├── test_translator.py  # Tests for translator functionality
-│   └── test_utils.py      # Tests for utilities
-├── data/                  # Data files
-│   ├── input_data.txt     # Sample input data for translations
-│   ├── output_data.txt    # Sample output data for translations
-│   └── config.json        # Configuration settings
-└── .gitignore             # Git ignore file
+app.py
+install_model.py
+piper_tts.py
+
+src/
+├── asr/
+├── audio/
+├── models/
+└── translation/
+└── ui/
 ```
 
 ## Descriptions
