@@ -8,3 +8,4 @@ sentencepiece>=0.2.0
 silero-vad>=6.2.1
 scipy>=1.17.1
 torch
+pyyaml>=6.0
