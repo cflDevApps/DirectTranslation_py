@@ -12,6 +12,7 @@ class HybridAudioPipeline:
     def __init__(
         self,
         whisper_model,
+        vad=None,
         sample_rate: int = 16000,
         chunk_duration: float = 2.5,
         overlap_duration: float = 0.25,
@@ -27,6 +28,7 @@ class HybridAudioPipeline:
         self.device = device
 
         self.whisper = whisper_model
+        self.vad = vad
 
         self.buffer = []
         self.buffer_samples = 0
@@ -57,7 +59,8 @@ class HybridAudioPipeline:
             blocksize=1024,
         )
         self.stream.start()
-        logger.info(f"Stream de audio iniciado (device={self.device})")
+        vad_type = "SileroVAD" if self.vad is not None else "energia"
+        logger.info(f"Stream de audio iniciado (device={self.device}, VAD={vad_type})")
 
     def _worker(self):
         while self.running:
@@ -81,21 +84,26 @@ class HybridAudioPipeline:
                 self.buffer = []
                 self.buffer_samples = 0
 
+            # Filtro de energia rápido — evita chamar GPU em silêncio claro
             energy = float(np.mean(np.abs(chunk)))
-
-            if energy > self.energy_threshold:
-                self.last_speech_time = time.time()
-                if not self.speaking:
-                    logger.debug("Inicio da fala detectado")
-                    self.speaking = True
-
-                text = self.whisper.transcribe(chunk)
-                if text:
-                    self.text_queue.put(text)
-            else:
+            if energy <= self.energy_threshold:
                 if self.speaking and (time.time() - self.last_speech_time > self.silence_timeout):
                     logger.debug("Fim da fala detectado")
                     self.speaking = False
+                continue
+
+            # VAD neural (SileroVAD no GPU) quando configurado
+            if self.vad is not None and not self.vad.is_speech(chunk):
+                continue
+
+            self.last_speech_time = time.time()
+            if not self.speaking:
+                logger.debug("Inicio da fala detectado")
+                self.speaking = True
+
+            text = self.whisper.transcribe(chunk)
+            if text:
+                self.text_queue.put(text)
 
     def start(self):
         self.running = True

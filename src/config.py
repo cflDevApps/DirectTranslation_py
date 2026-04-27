@@ -24,13 +24,25 @@ class ASRConfig:
 
 
 @dataclass
+class VADConfig:
+    enabled: bool
+    device: str
+    threshold: float
+
+
+@dataclass
 class TranslationConfig:
+    model_path: str
     source_language: str
     target_language: str
+    device: str
 
 
 @dataclass
 class TTSConfig:
+    engine: str
+    coqui_model: str
+    device: str
     model_path: str
     piper_path: str
 
@@ -45,6 +57,7 @@ class GPUConfig:
 class AppConfig:
     audio: AudioConfig
     asr: ASRConfig
+    vad: VADConfig
     translation: TranslationConfig
     tts: TTSConfig
     gpu: GPUConfig
@@ -56,6 +69,7 @@ class AppConfig:
         return cls(
             audio=AudioConfig(**data["audio"]),
             asr=ASRConfig(**data["asr"]),
+            vad=VADConfig(**data["vad"]),
             translation=TranslationConfig(**data["translation"]),
             tts=TTSConfig(**data["tts"]),
             gpu=GPUConfig(**data["gpu"]),

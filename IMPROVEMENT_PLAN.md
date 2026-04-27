@@ -35,14 +35,14 @@
 ---
 
 ### Fase 2 — GPU Completo
-- [ ] Integrar `SileroVAD` com CUDA (`src/audio/silero_vad.py`)
-- [ ] Substituir VAD por energia pelo SileroVAD no `HybridAudioPipeline`
-- [ ] Converter modelo OPUS-MT para CTranslate2 (script em `install_model.py`)
-- [ ] Migrar `TranslationEngine` para CTranslate2 + CUDA
-- [ ] Implementar `CoquiTTSEngine` com GPU (`src/tts/coqui_tts_engine.py`)
-- [ ] Adicionar `speak_sync()` ao engine TTS (para uso com `run_in_executor`)
-- [ ] Mover `piper_tts.py` para `src/tts/piper_tts.py` como fallback
-- [ ] Benchmark latência ponta a ponta (antes vs depois)
+- [x] Integrar `SileroVAD` com CUDA (`src/audio/silero_vad.py`)
+- [x] Substituir VAD por energia pelo SileroVAD no `HybridAudioPipeline`
+- [x] Converter modelo OPUS-MT para CTranslate2 (script em `install_model.py`)
+- [x] Migrar `TranslationEngine` para CTranslate2 + CUDA
+- [x] Implementar `CoquiTTSEngine` com GPU (`src/tts/coqui_tts_engine.py`)
+- [x] Adicionar `speak_sync()` ao engine TTS (para uso com `run_in_executor`)
+- [x] Mover `piper_tts.py` para `src/tts/piper_tts.py` como fallback
+- [x] Benchmark latência ponta a ponta (antes vs depois)
 
 ---
 

@@ -14,12 +14,22 @@ asr:
   cpu_threads: 4
   num_workers: 2
 
+vad:
+  enabled: true
+  device: cuda
+  threshold: 0.5
+
 translation:
+  model_path: src/models/opus-mt-pt-en   # gerado por install_model.py; fallback: argostranslate
   source_language: pt
   target_language: en
+  device: cuda
 
 tts:
-  model_path: src/models/en_US-lessac-medium.onnx
+  engine: coqui                          # coqui | piper
+  coqui_model: tts_models/en/ljspeech/vits
+  device: cuda
+  model_path: src/models/en_US-lessac-medium.onnx   # usado pelo Piper (fallback)
   piper_path: piper
 
 gpu:

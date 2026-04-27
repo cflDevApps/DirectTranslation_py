@@ -9,3 +9,5 @@ silero-vad>=6.2.1
 scipy>=1.17.1
 torch
 pyyaml>=6.0
+TTS>=0.22.0          # Coqui TTS GPU; alternativa: pip install coqui-tts
+transformers>=4.40   # tokenizer OPUS-MT
