@@ -60,13 +60,13 @@
 ---
 
 ### Fase 4 — UI com PySide6
-- [ ] Criar `src/ui/main_window.py` com layout básico (wireframe da seção 4.5)
-- [ ] Seleção de dispositivo de áudio via combo box
-- [ ] Seleção dinâmica de idioma origem / destino
-- [ ] Painel de texto: Palestrante e Tradução em tempo real
-- [ ] Painel de métricas: latência por estágio + uso de VRAM
-- [ ] Botões Iniciar / Parar com controle do pipeline
-- [ ] Integrar UI com `AsyncTranslationPipeline` via signals PySide6
+- [x] Criar `src/ui/main_window.py` com layout baseado no wireframe
+- [x] Seleção de dispositivo de áudio via combo box
+- [x] Seleção dinâmica de idioma origem / destino
+- [x] Painel de texto: Palestrante e Tradução em tempo real
+- [x] Painel de métricas: latência por estágio + uso de VRAM
+- [x] Botões Iniciar / Parar com controle do pipeline
+- [x] Integrar UI com `AsyncTranslationPipeline` via Qt Signals (thread-safe)
 
 ---
 

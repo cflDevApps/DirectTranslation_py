@@ -4,7 +4,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Callable
 
 import numpy as np
 
@@ -21,6 +21,7 @@ class _TranscribedItem:
 class _TranslatedItem:
     original: str
     translated: str
+    asr_ms: float          # carregado desde o estágio ASR
     translation_ms: float
 
 
@@ -34,13 +35,29 @@ class AsyncTranslationPipeline:
 
     Operações GPU rodam em ThreadPoolExecutor para não bloquear o event loop.
     Shutdown propagado via sentinel None através das filas.
+    Callbacks opcionais permitem integração com a UI sem acoplamento direto.
     """
 
-    def __init__(self, asr, vad, translator, tts, config):
+    def __init__(
+        self,
+        asr,
+        vad,
+        translator,
+        tts,
+        config,
+        on_transcription: Optional[Callable[[str, float], None]] = None,
+        on_translation: Optional[Callable[[str, str, float, float], None]] = None,
+        on_tts_complete: Optional[Callable[[float], None]] = None,
+    ):
         self._asr = asr
         self._vad = vad
         self._translator = translator
         self._tts = tts
+
+        # Callbacks para a UI (chamados das threads do executor — thread-safe com Qt signals)
+        self._on_transcription = on_transcription   # (text, asr_ms)
+        self._on_translation = on_translation       # (original, translated, asr_ms, tr_ms)
+        self._on_tts_complete = on_tts_complete     # (tts_ms,)
 
         p = config.pipeline
         self._audio_q: asyncio.Queue[Optional[np.ndarray]] = asyncio.Queue(
@@ -61,7 +78,6 @@ class AsyncTranslationPipeline:
         self._tasks: list[asyncio.Task] = []
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-        # Acumuladores de latência por estágio
         self._latency: dict[str, deque] = {
             "asr": deque(maxlen=20),
             "translation": deque(maxlen=20),
@@ -75,7 +91,7 @@ class AsyncTranslationPipeline:
             try:
                 self._audio_q.put_nowait(audio)
             except asyncio.QueueFull:
-                logger.debug("Audio queue cheia — chunk descartado (pipeline congestionado)")
+                logger.debug("Audio queue cheia — chunk descartado")
 
         self._loop.call_soon_threadsafe(_put)
 
@@ -104,6 +120,8 @@ class AsyncTranslationPipeline:
 
             if text:
                 logger.info(f"[ASR {asr_ms:.0f}ms] {text}")
+                if self._on_transcription:
+                    self._on_transcription(text, asr_ms)
                 await self._text_q.put(_TranscribedItem(text=text, asr_ms=asr_ms))
 
     # ── Worker 2: Tradução ───────────────────────────────────────────────
@@ -125,10 +143,13 @@ class AsyncTranslationPipeline:
             self._latency["translation"].append(tr_ms)
 
             logger.info(f"[TR {tr_ms:.0f}ms] {translated}")
+            if self._on_translation:
+                self._on_translation(item.text, translated, item.asr_ms, tr_ms)
             await self._translated_q.put(
                 _TranslatedItem(
                     original=item.text,
                     translated=translated,
+                    asr_ms=item.asr_ms,
                     translation_ms=tr_ms,
                 )
             )
@@ -149,6 +170,8 @@ class AsyncTranslationPipeline:
             self._latency["tts"].append(tts_ms)
 
             logger.info(f"[TTS {tts_ms:.0f}ms]")
+            if self._on_tts_complete:
+                self._on_tts_complete(tts_ms)
 
     # ── Ciclo de vida ────────────────────────────────────────────────────
 
@@ -164,7 +187,7 @@ class AsyncTranslationPipeline:
 
     async def stop(self):
         self._running = False
-        await self._audio_q.put(None)  # sentinel dispara encerramento em cascata
+        await self._audio_q.put(None)
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._executor.shutdown(wait=False)
         self._report_latency()
