@@ -48,6 +48,14 @@ class TTSConfig:
 
 
 @dataclass
+class PipelineConfig:
+    audio_queue_size: int
+    text_queue_size: int
+    translated_queue_size: int
+    gpu_pool_workers: int
+
+
+@dataclass
 class GPUConfig:
     device: str
     fallback_to_cpu: bool
@@ -60,6 +68,7 @@ class AppConfig:
     vad: VADConfig
     translation: TranslationConfig
     tts: TTSConfig
+    pipeline: PipelineConfig
     gpu: GPUConfig
 
     @classmethod
@@ -72,5 +81,6 @@ class AppConfig:
             vad=VADConfig(**data["vad"]),
             translation=TranslationConfig(**data["translation"]),
             tts=TTSConfig(**data["tts"]),
+            pipeline=PipelineConfig(**data["pipeline"]),
             gpu=GPUConfig(**data["gpu"]),
         )

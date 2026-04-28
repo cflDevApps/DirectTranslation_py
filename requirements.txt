@@ -11,3 +11,5 @@ torch
 pyyaml>=6.0
 TTS>=0.22.0          # Coqui TTS GPU; alternativa: pip install coqui-tts
 transformers>=4.40   # tokenizer OPUS-MT
+pytest>=7.0
+pytest-asyncio>=0.23

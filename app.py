@@ -1,7 +1,9 @@
+import asyncio
+
 from src.config import AppConfig
 from src.core.logging import setup_logging
-from src.core.benchmark import LatencyTracker
-from src.audio.hybrid_audio_pipeline import HybridAudioPipeline
+from src.core.async_pipeline import AsyncTranslationPipeline
+from src.audio.async_audio_capture import AsyncAudioCapture
 from src.asr.whisper_engine import WhisperEngine
 from src.translation.translation_engine import TranslationEngine
 
@@ -20,25 +22,20 @@ def _create_vad(config: AppConfig):
 
 
 def _create_tts(config: AppConfig):
-    engine = config.tts.engine.lower()
-    if engine == "coqui":
+    if config.tts.engine.lower() == "coqui":
         try:
             from src.tts.coqui_tts_engine import CoquiTTSEngine
-            return CoquiTTSEngine(
-                model_name=config.tts.coqui_model,
-                device=config.tts.device,
-            )
+            return CoquiTTSEngine(model_name=config.tts.coqui_model, device=config.tts.device)
         except Exception as e:
             logger.warning(f"Coqui TTS indisponivel, usando Piper: {e}")
     from src.tts.piper_tts import PiperTTS
     return PiperTTS(model_path=config.tts.model_path, piper_path=config.tts.piper_path)
 
 
-def start():
+async def main():
     config = AppConfig.from_file("config.yaml")
-    tracker = LatencyTracker()
 
-    whisper = WhisperEngine(
+    asr = WhisperEngine(
         model_size=config.asr.model_size,
         source_language=config.asr.source_language,
         device=config.asr.device,
@@ -46,52 +43,41 @@ def start():
         cpu_threads=config.asr.cpu_threads,
         num_workers=config.asr.num_workers,
     )
-
     vad = _create_vad(config)
-
-    pipeline = HybridAudioPipeline(
-        whisper_model=whisper,
-        vad=vad,
-        sample_rate=config.audio.sample_rate,
-        chunk_duration=config.audio.chunk_duration,
-        overlap_duration=config.audio.overlap_duration,
-        energy_threshold=config.audio.energy_threshold,
-        silence_timeout=config.audio.silence_timeout,
-        device=config.audio.device,
-    )
-
     translator = TranslationEngine(
         model_path=config.translation.model_path,
         source_language=config.translation.source_language,
         target_language=config.translation.target_language,
         device=config.translation.device,
     )
-
     tts = _create_tts(config)
 
-    pipeline.start()
-    logger.info("Fale algo...")
+    pipeline = AsyncTranslationPipeline(asr, vad, translator, tts, config)
+    capture = AsyncAudioCapture(
+        pipeline=pipeline,
+        sample_rate=config.audio.sample_rate,
+        device=config.audio.device,
+        chunk_duration=config.audio.chunk_duration,
+        overlap_duration=config.audio.overlap_duration,
+    )
+
+    await pipeline.start()
+    capture.start()
+    logger.info("Fale algo... (Ctrl+C para encerrar)")
 
     try:
-        while True:
-            sentence = pipeline.get_text()
-            if sentence:
-                logger.info(f"Palestrante: {sentence}")
-
-                tracker.start("translation")
-                translated = translator.translate(sentence)
-                tr_ms = tracker.end("translation")
-
-                logger.info(f"Traducao [{tr_ms:.0f}ms]: {translated}")
-                tts.speak(translated)
-    except KeyboardInterrupt:
+        # Aguarda indefinidamente; cancelado por KeyboardInterrupt via asyncio.run
+        await asyncio.get_running_loop().create_future()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
         logger.info("Encerrando...")
-        pipeline.stop()
-        tracker.report()
-    except Exception:
-        logger.error("Erro inesperado no pipeline", exc_info=True)
-        pipeline.stop()
+        capture.stop()
+        await pipeline.stop()
 
 
 if __name__ == "__main__":
-    start()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

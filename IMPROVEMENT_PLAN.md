@@ -47,15 +47,15 @@
 ---
 
 ### Fase 3 — Arquitetura Limpa
-- [ ] Criar `src/core/protocols.py` com interfaces `Protocol` (ASR, Translator, TTS)
-- [ ] Implementar detecção automática de device de áudio (sem hardcode)
-- [ ] Criar `src/core/async_pipeline.py` com 3 workers assíncronos
-- [ ] Criar `src/audio/async_audio_capture.py` (bridge `sounddevice` → `asyncio`)
-- [ ] Refatorar `app.py` para `asyncio.run(main())`
-- [ ] Integrar tamanhos de fila e parâmetros async no `config.yaml`
-- [ ] Adicionar métricas de latência por estágio no logger
-- [ ] Testar shutdown graceful (`Ctrl+C` cancela tasks sem travar)
-- [ ] Testes unitários dos componentes isolados (ASR, Translator, TTS)
+- [x] Criar `src/core/protocols.py` com interfaces `Protocol` (ASR, Translator, TTS, VAD)
+- [x] Implementar detecção automática de device de áudio (`src/audio/device_utils.py`)
+- [x] Criar `src/core/async_pipeline.py` com 3 workers assíncronos
+- [x] Criar `src/audio/async_audio_capture.py` (bridge `sounddevice` → `asyncio`)
+- [x] Refatorar `app.py` para `asyncio.run(main())`
+- [x] Integrar tamanhos de fila e parâmetros async no `config.yaml`
+- [x] Adicionar métricas de latência por estágio no logger
+- [x] Testar shutdown graceful (`Ctrl+C` cancela tasks sem travar)
+- [x] Testes unitários dos componentes isolados (ASR, Translator, TTS, pipeline async)
 
 ---
 

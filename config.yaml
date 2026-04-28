@@ -32,6 +32,12 @@ tts:
   model_path: src/models/en_US-lessac-medium.onnx   # usado pelo Piper (fallback)
   piper_path: piper
 
+pipeline:
+  audio_queue_size: 4       # chunks de áudio aguardando ASR (descarte por put_nowait)
+  text_queue_size: 8        # textos transcritos aguardando tradução (back-pressure)
+  translated_queue_size: 8  # textos traduzidos aguardando TTS (back-pressure)
+  gpu_pool_workers: 3       # threads no executor GPU (1 por estágio)
+
 gpu:
   device: cuda
   fallback_to_cpu: true

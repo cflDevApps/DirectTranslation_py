@@ -23,6 +23,12 @@ class LatencyTracker:
         self._samples[stage].append(ms)
         return ms
 
+    def record(self, stage: str, ms: float):
+        """Registra uma medição direta (sem start/end)."""
+        if stage not in self._samples:
+            self._samples[stage] = deque(maxlen=self._window)
+        self._samples[stage].append(ms)
+
     def report(self):
         if not self._samples:
             return
