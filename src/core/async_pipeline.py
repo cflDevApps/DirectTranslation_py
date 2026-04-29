@@ -59,6 +59,8 @@ class AsyncTranslationPipeline:
         self._on_translation = on_translation       # (original, translated, asr_ms, tr_ms)
         self._on_tts_complete = on_tts_complete     # (tts_ms,)
 
+        self._energy_threshold: float = config.audio.energy_threshold
+
         p = config.pipeline
         self._audio_q: asyncio.Queue[Optional[np.ndarray]] = asyncio.Queue(
             maxsize=p.audio_queue_size
@@ -106,23 +108,30 @@ class AsyncTranslationPipeline:
                 await self._text_q.put(None)
                 break
 
-            if self._vad is not None:
-                has_speech = await loop.run_in_executor(
-                    self._executor, self._vad.is_speech, audio
-                )
-                if not has_speech:
+            try:
+                energy = float(np.sqrt(np.mean(audio ** 2)))
+                if energy < self._energy_threshold:
                     continue
 
-            t0 = time.perf_counter()
-            text = await loop.run_in_executor(self._executor, self._asr.transcribe, audio)
-            asr_ms = (time.perf_counter() - t0) * 1000
-            self._latency["asr"].append(asr_ms)
+                if self._vad is not None:
+                    has_speech = await loop.run_in_executor(
+                        self._executor, self._vad.is_speech, audio
+                    )
+                    if not has_speech:
+                        continue
 
-            if text:
-                logger.info(f"[ASR {asr_ms:.0f}ms] {text}")
-                if self._on_transcription:
-                    self._on_transcription(text, asr_ms)
-                await self._text_q.put(_TranscribedItem(text=text, asr_ms=asr_ms))
+                t0 = time.perf_counter()
+                text = await loop.run_in_executor(self._executor, self._asr.transcribe, audio)
+                asr_ms = (time.perf_counter() - t0) * 1000
+                self._latency["asr"].append(asr_ms)
+
+                if text:
+                    logger.info(f"[ASR {asr_ms:.0f}ms] {text}")
+                    if self._on_transcription:
+                        self._on_transcription(text, asr_ms)
+                    await self._text_q.put(_TranscribedItem(text=text, asr_ms=asr_ms))
+            except Exception as e:
+                logger.error(f"ASR worker erro (chunk ignorado): {e}", exc_info=True)
 
     # ── Worker 2: Tradução ───────────────────────────────────────────────
 
@@ -135,24 +144,27 @@ class AsyncTranslationPipeline:
                 await self._translated_q.put(None)
                 break
 
-            t0 = time.perf_counter()
-            translated = await loop.run_in_executor(
-                self._executor, self._translator.translate, item.text
-            )
-            tr_ms = (time.perf_counter() - t0) * 1000
-            self._latency["translation"].append(tr_ms)
-
-            logger.info(f"[TR {tr_ms:.0f}ms] {translated}")
-            if self._on_translation:
-                self._on_translation(item.text, translated, item.asr_ms, tr_ms)
-            await self._translated_q.put(
-                _TranslatedItem(
-                    original=item.text,
-                    translated=translated,
-                    asr_ms=item.asr_ms,
-                    translation_ms=tr_ms,
+            try:
+                t0 = time.perf_counter()
+                translated = await loop.run_in_executor(
+                    self._executor, self._translator.translate, item.text
                 )
-            )
+                tr_ms = (time.perf_counter() - t0) * 1000
+                self._latency["translation"].append(tr_ms)
+
+                logger.info(f"[TR {tr_ms:.0f}ms] {translated}")
+                if self._on_translation:
+                    self._on_translation(item.text, translated, item.asr_ms, tr_ms)
+                await self._translated_q.put(
+                    _TranslatedItem(
+                        original=item.text,
+                        translated=translated,
+                        asr_ms=item.asr_ms,
+                        translation_ms=tr_ms,
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Translation worker erro (item ignorado): {e}", exc_info=True)
 
     # ── Worker 3: TTS ────────────────────────────────────────────────────
 
@@ -164,14 +176,17 @@ class AsyncTranslationPipeline:
             if item is None:
                 break
 
-            t0 = time.perf_counter()
-            await loop.run_in_executor(self._executor, self._tts.speak_sync, item.translated)
-            tts_ms = (time.perf_counter() - t0) * 1000
-            self._latency["tts"].append(tts_ms)
+            try:
+                t0 = time.perf_counter()
+                await loop.run_in_executor(self._executor, self._tts.speak_sync, item.translated)
+                tts_ms = (time.perf_counter() - t0) * 1000
+                self._latency["tts"].append(tts_ms)
 
-            logger.info(f"[TTS {tts_ms:.0f}ms]")
-            if self._on_tts_complete:
-                self._on_tts_complete(tts_ms)
+                logger.info(f"[TTS {tts_ms:.0f}ms]")
+                if self._on_tts_complete:
+                    self._on_tts_complete(tts_ms)
+            except Exception as e:
+                logger.error(f"TTS worker erro (item ignorado): {e}", exc_info=True)
 
     # ── Ciclo de vida ────────────────────────────────────────────────────
 

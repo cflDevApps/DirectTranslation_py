@@ -1,5 +1,5 @@
 audio:
-  device: null          # null = dispositivo padrão do sistema; trocar pelo índice (ex: 2) se necessário
+  device: 1          # null = dispositivo padrão do sistema; trocar pelo índice (ex: 2) se necessário
   sample_rate: 16000
   chunk_duration: 2.5
   overlap_duration: 0.25
@@ -26,7 +26,7 @@ translation:
   device: cuda
 
 tts:
-  engine: coqui                          # coqui | piper
+  engine: coqui                          # piper (padrão) | coqui (requer instalação manual — ver requirements.txt)
   coqui_model: tts_models/en/ljspeech/vits
   device: cuda
   model_path: src/models/en_US-lessac-medium.onnx   # usado pelo Piper (fallback)

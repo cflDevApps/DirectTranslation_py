@@ -22,14 +22,25 @@ class TranslationEngine:
                 import ctranslate2
                 from transformers import AutoTokenizer
 
-                logger.info(f"Carregando CTranslate2 de '{model_path}' ({device})...")
+                # Verifica e ajusta device se CUDA indisponível
+                resolved_device = device
+                if device == "cuda" and ctranslate2.get_cuda_device_count() == 0:
+                    logger.warning(
+                        "TranslationEngine: CUDA indisponivel para CTranslate2. Usando CPU."
+                    )
+                    resolved_device = "cpu"
+
+                logger.info(
+                    f"Carregando CTranslate2 de '{model_path}' ({resolved_device})..."
+                )
                 self._translator = ctranslate2.Translator(
-                    model_path, device=device, inter_threads=2
+                    model_path, device=resolved_device, inter_threads=2
                 )
                 self._tokenizer = AutoTokenizer.from_pretrained(model_path)
                 self._ct2 = True
                 logger.info(
-                    f"TranslationEngine (CTranslate2/{device}): {source_language} -> {target_language}"
+                    f"TranslationEngine (CTranslate2/{resolved_device}): "
+                    f"{source_language} -> {target_language}"
                 )
                 return
             except Exception as e:

@@ -69,7 +69,11 @@ try:
     TTS("tts_models/en/ljspeech/vits")
     print("Coqui TTS instalado.")
 except ImportError:
-    print("Pacote TTS nao instalado. Instale com: pip install TTS")
+    import sys
+    if sys.version_info >= (3, 12):
+        print("Pacote TTS nao instalado. Para Python 3.12+: pip install coqui-tts")
+    else:
+        print("Pacote TTS nao instalado. Para Python 3.9-3.11: pip install TTS>=0.22.0")
     print("O Piper sera usado como fallback.")
 except Exception as e:
     print(f"Aviso: erro ao baixar Coqui TTS: {e}")

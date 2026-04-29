@@ -12,9 +12,14 @@ SAMPLE_RATE = 22050
 class CoquiTTSEngine:
     def __init__(self, model_name: str = "tts_models/en/ljspeech/vits", device: str = "cuda"):
         from TTS.api import TTS
+        import torch
 
-        logger.info(f"Carregando Coqui TTS ({model_name})...")
-        self._tts = TTS(model_name, gpu=(device == "cuda"))
+        use_gpu = device == "cuda" and torch.cuda.is_available()
+        if device == "cuda" and not use_gpu:
+            logger.warning("Coqui TTS: CUDA indisponivel (PyTorch CPU-only). Usando CPU.")
+
+        logger.info(f"Carregando Coqui TTS ({model_name}, gpu={use_gpu})...")
+        self._tts = TTS(model_name, gpu=use_gpu)
         logger.info("Coqui TTS carregado.")
 
         self._queue: Queue = Queue(maxsize=5)
