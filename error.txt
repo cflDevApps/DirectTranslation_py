@@ -1,0 +1,14 @@
+$ python app.py
+02:13:48 [INFO] directtranslation.asr: Carregando Whisper (medium, cuda, int8_float16)...
+02:13:51 [INFO] directtranslation.asr: Whisper carregado.
+02:13:51 [WARNING] directtranslation.vad: SileroVAD: CUDA indisponivel (PyTorch CPU-only). Usando CPU.
+02:13:51 [INFO] directtranslation.vad: Carregando SileroVAD (cpu)...
+02:13:52 [INFO] directtranslation.vad: SileroVAD carregado.
+02:13:52 [WARNING] directtranslation.translation: Modelo nao encontrado em 'src/models/opus-mt-pt-en'. Execute install_model.py para gerar. Usando argostranslate.
+02:13:52 [INFO] directtranslation.translation: TranslationEngine (argostranslate/CPU): pt -> en
+02:13:57 [WARNING] directtranslation.worker: Coqui TTS indisponivel: cannot import name 'isin_mps_friendly' from 'transformers.pytorch_utils' (C:\dev\python\DirectTransalation\.venv\Lib\site-packages\transformers\pytorch_utils.py)
+02:13:57 [INFO] directtranslation.pipeline: Pipeline assíncrono iniciado (3 workers)
+02:13:57 [INFO] directtranslation.audio: Dispositivo de audio: [1] Microfone (U-120)
+02:13:57 [INFO] directtranslation.capture: AsyncAudioCapture iniciado.
+02:13:57 [INFO] directtranslation.worker: Pipeline UI iniciado.
+02:14:21 [INFO] directtranslation.capture: AsyncAudioCapture encerrado.

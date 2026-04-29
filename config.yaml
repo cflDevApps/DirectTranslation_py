@@ -1,0 +1,43 @@
+audio:
+  device: 1          # null = dispositivo padrão do sistema; trocar pelo índice (ex: 2) se necessário
+  sample_rate: 16000
+  chunk_duration: 2.5
+  overlap_duration: 0.25
+  energy_threshold: 0.0015
+  silence_timeout: 1.0
+
+asr:
+  model_size: medium
+  source_language: pt
+  device: cuda
+  compute_type: int8_float16
+  cpu_threads: 4
+  num_workers: 2
+
+vad:
+  enabled: true
+  device: cuda
+  threshold: 0.5
+
+translation:
+  model_path: src/models/opus-mt-pt-en   # gerado por install_model.py; fallback: argostranslate
+  source_language: pt
+  target_language: en
+  device: cuda
+
+tts:
+  engine: coqui                          # piper (padrão) | coqui (requer instalação manual — ver requirements.txt)
+  coqui_model: tts_models/en/ljspeech/vits
+  device: cuda
+  model_path: src/models/en_US-lessac-medium.onnx   # usado pelo Piper (fallback)
+  piper_path: piper
+
+pipeline:
+  audio_queue_size: 4       # chunks de áudio aguardando ASR (descarte por put_nowait)
+  text_queue_size: 8        # textos transcritos aguardando tradução (back-pressure)
+  translated_queue_size: 8  # textos traduzidos aguardando TTS (back-pressure)
+  gpu_pool_workers: 3       # threads no executor GPU (1 por estágio)
+
+gpu:
+  device: cuda
+  fallback_to_cpu: true

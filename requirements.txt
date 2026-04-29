@@ -7,4 +7,19 @@ ctranslate2>=4.3
 sentencepiece>=0.2.0
 silero-vad>=6.2.1
 scipy>=1.17.1
-torch
+pyyaml>=6.0
+transformers>=4.40
+pytest>=7.0
+pytest-asyncio>=0.23
+
+# ── PyTorch (requer instalação com índice CUDA) ───────────────────────────────
+# Instale com suporte a GPU (CUDA 12.8+):
+#   pip install torch==2.10.0+cu128 torchaudio==2.10.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+#
+# Para CPU apenas:
+#   pip install torch torchaudio
+torch>=2.10.0
+torchaudio>=2.10.0
+
+# ── TTS ───────────────────────────────────────────────────────────────────────
+coqui-tts>=0.27.0
