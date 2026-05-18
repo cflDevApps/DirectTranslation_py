@@ -6,10 +6,9 @@ from threading import Thread
 
 logger = logging.getLogger("directtranslation.tts.coqui")
 
-SAMPLE_RATE = 22050
-
-
 class CoquiTTSEngine:
+    SAMPLE_RATE: int = 22050
+
     def __init__(self, model_name: str = "tts_models/en/ljspeech/vits", device: str = "cuda"):
         from TTS.api import TTS
         import torch
@@ -36,10 +35,14 @@ class CoquiTTSEngine:
             except Exception as e:
                 logger.error(f"Coqui TTS error: {e}")
 
-    def speak_sync(self, text: str):
+    def generate(self, text: str) -> np.ndarray:
+        """Inferência GPU apenas — sem reprodução de áudio."""
         wav = self._tts.tts(text=text)
-        audio = np.array(wav, dtype=np.float32)
-        sd.play(audio, SAMPLE_RATE)
+        return np.array(wav, dtype=np.float32)
+
+    def speak_sync(self, text: str):
+        audio = self.generate(text)
+        sd.play(audio, self.SAMPLE_RATE)
         sd.wait()
 
     def speak(self, text: str):

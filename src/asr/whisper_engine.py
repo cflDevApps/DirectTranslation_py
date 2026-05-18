@@ -64,13 +64,23 @@ class WhisperEngine:
         )
         logger.info("Whisper recarregado em CPU.")
 
+    _TRANSCRIBE_KWARGS = dict(
+        beam_size=1,                    # greedy decoding: ~2x mais rápido, mínima perda de qualidade
+        without_timestamps=True,        # pula cálculo de timestamps (desnecessário aqui)
+        condition_on_previous_text=False,  # evita alucinações cumulativas entre chunks
+    )
+
     def transcribe(self, audio) -> str:
         try:
-            segments, _ = self.model.transcribe(audio, language=self.source_language)
+            segments, _ = self.model.transcribe(
+                audio, language=self.source_language, **self._TRANSCRIBE_KWARGS
+            )
             return "".join(seg.text for seg in segments).strip()
         except RuntimeError as e:
             if _is_cuda_runtime_error(e):
                 self._reload_cpu()
-                segments, _ = self.model.transcribe(audio, language=self.source_language)
+                segments, _ = self.model.transcribe(
+                    audio, language=self.source_language, **self._TRANSCRIBE_KWARGS
+                )
                 return "".join(seg.text for seg in segments).strip()
             raise

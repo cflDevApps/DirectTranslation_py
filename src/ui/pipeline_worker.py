@@ -74,6 +74,7 @@ class PipelineWorker(QObject):
         from src.translation.translation_engine import TranslationEngine
         from src.core.async_pipeline import AsyncTranslationPipeline
         from src.audio.async_audio_capture import AsyncAudioCapture
+        from src.translation_log import TranslationLog
 
         cfg = self._config
 
@@ -94,6 +95,8 @@ class PipelineWorker(QObject):
         )
         tts = self._create_tts()
 
+        log_path = TranslationLog.timestamped_path()
+        logger.info(f"Gravando traduções em: {log_path}")
         pipeline = AsyncTranslationPipeline(
             asr, vad, translator, tts, cfg,
             on_transcription=lambda text, ms: self.transcription_ready.emit(text, ms),
@@ -101,6 +104,7 @@ class PipelineWorker(QObject):
                 orig, tr, asr_ms, tr_ms
             ),
             on_tts_complete=lambda tts_ms: self.tts_complete.emit(tts_ms),
+            translation_log=TranslationLog(log_path),
         )
         capture = AsyncAudioCapture(
             pipeline=pipeline,

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"C:\\\\dev\\\\python\\\\DirectTransalation\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if \\($_.PSIsContainer\\) { \"DIR\" } else { \"FILE\" }}} | Sort-Object Type, Name | Format-Table -AutoSize)"
+    ]
+  }
+}

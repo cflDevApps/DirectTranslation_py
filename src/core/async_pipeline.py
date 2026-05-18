@@ -4,9 +4,12 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import TYPE_CHECKING, Optional, Callable
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from src.translation_log import TranslationLog
 
 logger = logging.getLogger("directtranslation.pipeline")
 
@@ -48,6 +51,7 @@ class AsyncTranslationPipeline:
         on_transcription: Optional[Callable[[str, float], None]] = None,
         on_translation: Optional[Callable[[str, str, float, float], None]] = None,
         on_tts_complete: Optional[Callable[[float], None]] = None,
+        translation_log: Optional["TranslationLog"] = None,
     ):
         self._asr = asr
         self._vad = vad
@@ -58,6 +62,7 @@ class AsyncTranslationPipeline:
         self._on_transcription = on_transcription   # (text, asr_ms)
         self._on_translation = on_translation       # (original, translated, asr_ms, tr_ms)
         self._on_tts_complete = on_tts_complete     # (tts_ms,)
+        self._translation_log = translation_log
 
         self._energy_threshold: float = config.audio.energy_threshold
 
@@ -76,6 +81,13 @@ class AsyncTranslationPipeline:
             max_workers=p.gpu_pool_workers,
             thread_name_prefix="gpu",
         )
+        # Thread dedicada à reprodução de áudio — separada do executor GPU para permitir
+        # que a geração do próximo chunk sobreponha a reprodução do atual.
+        self._playback_executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="tts-play",
+        )
+        self._tts_sample_rate: int = getattr(tts, "SAMPLE_RATE", 22050)
         self._running = False
         self._tasks: list[asyncio.Task] = []
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -166,25 +178,61 @@ class AsyncTranslationPipeline:
             except Exception as e:
                 logger.error(f"Translation worker erro (item ignorado): {e}", exc_info=True)
 
-    # ── Worker 3: TTS ────────────────────────────────────────────────────
+    # ── Worker 3: TTS (pipeline geração/reprodução) ──────────────────────
+    #
+    # Geração (GPU) e reprodução (speaker) correm em executores separados.
+    # Enquanto o chunk N está sendo reproduzido, o chunk N+1 já é gerado na GPU,
+    # eliminando a espera entre frases consecutivas.
+    #
+    # Sequência por item:
+    #   1. generate(text)  → np.ndarray  [executor GPU, sobrepõe reprodução anterior]
+    #   2. await playback anterior        [garante que o speaker esteja livre]
+    #   3. _play_audio(audio)             [executor playback, não-bloqueante p/ o worker]
+
+    def _play_audio(self, audio) -> float:
+        import sounddevice as sd
+        t0 = time.perf_counter()
+        sd.play(audio, self._tts_sample_rate)
+        sd.wait()
+        return (time.perf_counter() - t0) * 1000
 
     async def _tts_worker(self):
         loop = asyncio.get_running_loop()
+        playback_fut: asyncio.Future | None = None
+        pending_item: _TranslatedItem | None = None
+
+        async def _finish_playback():
+            nonlocal playback_fut, pending_item
+            if playback_fut is None:
+                return
+            play_ms: float = await playback_fut
+            self._latency["tts"].append(play_ms)
+            logger.info(f"[TTS {play_ms:.0f}ms]")
+            if self._translation_log and pending_item:
+                self._translation_log.write(pending_item.translated)
+            if self._on_tts_complete:
+                self._on_tts_complete(play_ms)
+            playback_fut = None
+            pending_item = None
 
         while self._running:
             item = await self._translated_q.get()
             if item is None:
+                await _finish_playback()
                 break
 
             try:
-                t0 = time.perf_counter()
-                await loop.run_in_executor(self._executor, self._tts.speak_sync, item.translated)
-                tts_ms = (time.perf_counter() - t0) * 1000
-                self._latency["tts"].append(tts_ms)
-
-                logger.info(f"[TTS {tts_ms:.0f}ms]")
-                if self._on_tts_complete:
-                    self._on_tts_complete(tts_ms)
+                # Geração GPU — ocorre em paralelo com a reprodução em curso
+                audio = await loop.run_in_executor(
+                    self._executor, self._tts.generate, item.translated
+                )
+                # Aguarda o speaker ficar livre antes de iniciar nova reprodução
+                await _finish_playback()
+                # Inicia reprodução de forma não-bloqueante
+                pending_item = item
+                playback_fut = loop.run_in_executor(
+                    self._playback_executor, self._play_audio, audio
+                )
             except Exception as e:
                 logger.error(f"TTS worker erro (item ignorado): {e}", exc_info=True)
 
@@ -205,7 +253,10 @@ class AsyncTranslationPipeline:
         await self._audio_q.put(None)
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._executor.shutdown(wait=False)
+        self._playback_executor.shutdown(wait=False)
         self._report_latency()
+        if self._translation_log:
+            self._translation_log.close()
         logger.info("Pipeline encerrado.")
 
     def _report_latency(self):

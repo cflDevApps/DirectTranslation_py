@@ -23,6 +23,7 @@ def _run_cli():
     from src.audio.async_audio_capture import AsyncAudioCapture
     from src.asr.whisper_engine import WhisperEngine
     from src.translation.translation_engine import TranslationEngine
+    from src.translation_log import TranslationLog
 
     async def main():
         config = AppConfig.from_file("config.yaml")
@@ -63,7 +64,12 @@ def _run_cli():
             from src.tts.piper_tts import PiperTTS
             tts = PiperTTS(model_path=config.tts.model_path, piper_path=config.tts.piper_path)
 
-        pipeline = AsyncTranslationPipeline(asr, vad, translator, tts, config)
+        log_path = TranslationLog.timestamped_path()
+        logger.info(f"Gravando traduções em: {log_path}")
+        pipeline = AsyncTranslationPipeline(
+            asr, vad, translator, tts, config,
+            translation_log=TranslationLog(log_path),
+        )
         capture = AsyncAudioCapture(
             pipeline=pipeline,
             sample_rate=config.audio.sample_rate,

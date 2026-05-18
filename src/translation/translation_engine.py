@@ -34,7 +34,7 @@ class TranslationEngine:
                     f"Carregando CTranslate2 de '{model_path}' ({resolved_device})..."
                 )
                 self._translator = ctranslate2.Translator(
-                    model_path, device=resolved_device, inter_threads=2
+                    model_path, device=resolved_device, inter_threads=1
                 )
                 self._tokenizer = AutoTokenizer.from_pretrained(model_path)
                 self._ct2 = True
