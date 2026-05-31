@@ -1,19 +1,25 @@
 import sounddevice as sd
 import numpy as np
 import time
+import logging
 from queue import Queue
 from threading import Thread
 
-class HybridAudioPipeline:
-    def __init__(self,
-                 whisper_model,
-                 sample_rate=16000,
-                 chunk_duration=2.5,
-                 overlap_duration=0.25,
-                 energy_threshold=0.002,
-                 silence_timeout=0.8,
-                 device=None):
+logger = logging.getLogger("directtranslation.audio")
 
+
+class HybridAudioPipeline:
+    def __init__(
+        self,
+        whisper_model,
+        vad=None,
+        sample_rate: int = 16000,
+        chunk_duration: float = 2.5,
+        overlap_duration: float = 0.25,
+        energy_threshold: float = 0.002,
+        silence_timeout: float = 0.8,
+        device=None,
+    ):
         self.sample_rate = sample_rate
         self.chunk_samples = int(sample_rate * chunk_duration)
         self.overlap_samples = int(sample_rate * overlap_duration)
@@ -22,95 +28,86 @@ class HybridAudioPipeline:
         self.device = device
 
         self.whisper = whisper_model
+        self.vad = vad
 
-        # estado
         self.buffer = []
         self.buffer_samples = 0
-        self.last_speech_time = 0
+        self.last_speech_time = 0.0
         self.speaking = False
 
-        # filas
-        self.raw_queue = Queue()
-        self.text_queue = Queue()
+        self.raw_queue: Queue = Queue()
+        self.text_queue: Queue = Queue()
 
         self.running = False
         self.stream = None
 
-    # ---------------- CAPTURA ----------------
     def _callback(self, indata, frames, time_info, status):
         if status:
-            print("Audio status:", status)
-
+            logger.warning(f"Audio status: {status}")
         data = indata.copy()
-
         if data.ndim > 1:
             data = data[:, 0]
-
         self.raw_queue.put(data)
 
-    def start_stream(self):
+    def _start_stream(self):
         self.stream = sd.InputStream(
             samplerate=self.sample_rate,
             channels=1,
             dtype="float32",
             callback=self._callback,
             device=self.device,
-            blocksize=1024
+            blocksize=1024,
         )
         self.stream.start()
-        print(f"🎤 Stream iniciado (device={self.device})")
+        vad_type = "SileroVAD" if self.vad is not None else "energia"
+        logger.info(f"Stream de audio iniciado (device={self.device}, VAD={vad_type})")
 
-    # ---------------- WORKER ----------------
     def _worker(self):
         while self.running:
             try:
                 data = self.raw_queue.get(timeout=0.1)
-            except:
+            except Exception:
                 continue
 
             self.buffer.append(data)
             self.buffer_samples += len(data)
 
-            if self.buffer_samples >= self.chunk_samples:
-                chunk = np.concatenate(self.buffer, axis=0)[:self.chunk_samples]
+            if self.buffer_samples < self.chunk_samples:
+                continue
 
-                # overlap
-                if self.overlap_samples > 0:
-                    keep = chunk[-self.overlap_samples:]
-                    self.buffer = [keep]
-                    self.buffer_samples = len(keep)
-                else:
-                    self.buffer = []
-                    self.buffer_samples = 0
+            chunk = np.concatenate(self.buffer, axis=0)[: self.chunk_samples]
 
-                # ---------------- ENERGY FILTER ----------------
-                energy = np.mean(np.abs(chunk))
-                # print(f"Energy: {energy:.5f}")
+            if self.overlap_samples > 0:
+                self.buffer = [chunk[-self.overlap_samples :]]
+                self.buffer_samples = self.overlap_samples
+            else:
+                self.buffer = []
+                self.buffer_samples = 0
 
-                if energy > self.energy_threshold:
-                    self.last_speech_time = time.time()
+            # Filtro de energia rápido — evita chamar GPU em silêncio claro
+            energy = float(np.mean(np.abs(chunk)))
+            if energy <= self.energy_threshold:
+                if self.speaking and (time.time() - self.last_speech_time > self.silence_timeout):
+                    logger.debug("Fim da fala detectado")
+                    self.speaking = False
+                continue
 
-                    if not self.speaking:
-                        print("🎤 Início da fala")
-                        self.speaking = True
+            # VAD neural (SileroVAD no GPU) quando configurado
+            if self.vad is not None and not self.vad.is_speech(chunk):
+                continue
 
-                    # ---------------- WHISPER ----------------
-                    text = self.whisper.transcribe(chunk)
+            self.last_speech_time = time.time()
+            if not self.speaking:
+                logger.debug("Inicio da fala detectado")
+                self.speaking = True
 
-                    if text and text.strip():
-                        self.text_queue.put(text)
+            text = self.whisper.transcribe(chunk)
+            if text:
+                self.text_queue.put(text)
 
-                else:
-                    # silêncio prolongado
-                    if self.speaking and (time.time() - self.last_speech_time > self.silence_timeout):
-                        print("🛑 Fim da fala")
-                        self.speaking = False
-
-    # ---------------- API ----------------
     def start(self):
         self.running = True
-        self.start_stream()
-
+        self._start_stream()
         self.thread = Thread(target=self._worker, daemon=True)
         self.thread.start()
 
@@ -120,7 +117,7 @@ class HybridAudioPipeline:
             self.stream.stop()
             self.stream.close()
 
-    def get_text(self):
+    def get_text(self) -> str | None:
         if not self.text_queue.empty():
             return self.text_queue.get()
         return None
